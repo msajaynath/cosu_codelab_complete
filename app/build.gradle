@@ -1,0 +1,31 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.2"
+
+    defaultConfig {
+        applicationId "com.google.codelabs.cosu"
+        minSdkVersion 23
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    compile "com.android.support:support-v4:23.0+"
+    compile 'com.github.barteksc:android-pdf-viewer:2.7.0'
+    compile 'com.joanzapata.pdfview:android-pdfview:1.0.4@aar'
+    compile 'es.voghdev.pdfviewpager:library:1.0.2'
+
+
+
+}
