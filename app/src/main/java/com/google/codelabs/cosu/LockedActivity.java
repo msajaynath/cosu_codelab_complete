@@ -14,54 +14,52 @@
 
 package com.google.codelabs.cosu;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.AlertDialog;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.SystemUpdatePolicy;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.net.Uri;
 import android.os.BatteryManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.os.UserManager;
 import android.provider.Settings;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.ImageView;
+import android.widget.EditText;
 import android.widget.Toast;
 
-import com.github.barteksc.pdfviewer.PDFView;
-
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+import es.voghdev.pdfviewpager.library.PDFViewPager;
+import es.voghdev.pdfviewpager.library.adapter.PDFPagerAdapter;
 
 public class LockedActivity extends Activity {
 
     //private ImageView imageView;
     private Button stopLockButton;
-    private String mCurrentPhotoPath;
-    private PDFView pdf;
+    private PDFViewPager pdfViewPager;
     private ComponentName mAdminComponentName;
     private DevicePolicyManager mDevicePolicyManager;
-    private PackageManager mPackageManager;
 
-    private static final String PREFS_FILE_NAME = "MyPrefsFile";
-    private static final String PHOTO_PATH = "Photo Path";
     public static final String LOCK_ACTIVITY_KEY = "lock_activity";
     public static final int FROM_LOCK_ACTIVITY = 1;
+    private File file;
+    private SharedPreferences pref;
+    private String dateString;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,105 +67,172 @@ public class LockedActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         setContentView(R.layout.activity_locked);
-
         mDevicePolicyManager = (DevicePolicyManager)
                 getSystemService(Context.DEVICE_POLICY_SERVICE);
 
         // Setup stop lock task button
         stopLockButton = (Button) findViewById(R.id.stop_lock_button);
-        pdf = (PDFView) findViewById(R.id.pdfView);
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
+         file = new File(Environment.getExternalStorageDirectory()
+                .getAbsolutePath(), "spiritspdf/spirits.pdf");
 
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                final File file = new File(Environment.getExternalStorageDirectory()
-                        .getAbsolutePath(), "spiritspdf/spirits.pdf");
-                pdf.fromFile(file)
-                        // .pages(0, 2, 1, 3, 3, 3) // all pages are displayed by default
-                        .enableSwipe(true) // allows to block changing pages using swipe
-                        //.sw
-                        .swipeHorizontal(true)
-                        .enableDoubletap(true)
-                        .defaultPage(0)
-                        // allows to draw something on the current page, usually visible in the middle of the screen
-                        //.onDraw(onDrawListener)
-                        // allows to draw something on all pages, separately for every page. Called only for visible pages
-                        // .onDrawAll(onDrawListener)
-                        // .onLoad(onLoadCompleteListener) // called after document is loaded and starts to be rendered
-                        // .onPageChange(onPageChangeListener)
-                        // .onPageScroll(onPageScrollListener)
-                        // .onError(onErrorListener)
-                        /// .onRender(onRenderListener) // called after document is rendered for the first time
-                        // called on single tap, return true if handled, false to toggle scroll handle visibility
-                        // .onTap(onTapListener)
-                        .enableAnnotationRendering(false) // render annotations (such as comments, colors or forms)
-                        .password(null)
-                        .scrollHandle(null)
-                        //.
-                        .enableAntialiasing(true) // improve rendering a little bit on low-res screens
-                        // spacing between pages in dp. To define spacing color, set view background
-                        .spacing(0)
-                        .load();
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
 
-            } else {
+        pdfViewPager = (PDFViewPager) findViewById(R.id.pdfViewPager);
 
-                // No explanation needed, we can request the permission.
+        PDFPagerAdapter adapter = new PDFPagerAdapter(this, file.getAbsolutePath());
+        pdfViewPager.setAdapter(adapter);
 
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
-                        1);
 
-                // MY_PERMISSIONS_REQUEST_READ_CONTACTS is an
-                // app-defined int constant. The callback method gets the
-                // result of the request.
+        stopLockButton.setOnTouchListener(new View.OnTouchListener() {
+            Handler handler = new Handler();
+
+            int numberOfTaps = 0;
+            long lastTapTimeMs = 0;
+            long touchDownMs = 0;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        touchDownMs = System.currentTimeMillis();
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        handler.removeCallbacksAndMessages(null);
+
+                        if ((System.currentTimeMillis() - touchDownMs) > ViewConfiguration.getTapTimeout()) {
+                            //it was not a tap
+
+                            numberOfTaps = 0;
+                            lastTapTimeMs = 0;
+                            break;
+                        }
+
+                        if (numberOfTaps > 0
+                                && (System.currentTimeMillis() - lastTapTimeMs) < ViewConfiguration.getDoubleTapTimeout()) {
+                            numberOfTaps += 1;
+                        } else {
+                            numberOfTaps = 1;
+                        }
+
+                        lastTapTimeMs = System.currentTimeMillis();
+
+                        if (numberOfTaps == 5) {
+                            ShowDialog();
+                            //handle triple tap
+                        }
+                }
+
+                return true;
             }
-        }
-
-
+        });
         stopLockButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                ActivityManager am = (ActivityManager) getSystemService(
-                        Context.ACTIVITY_SERVICE);
-
-                if (am.getLockTaskModeState() ==
-                            ActivityManager.LOCK_TASK_MODE_LOCKED) {
-                    stopLockTask();
-                }
-
-                setDefaultCosuPolicies(false);
-
-                Intent intent = new Intent(
-                        getApplicationContext(), MainActivity.class);
-
-                intent.putExtra(LOCK_ACTIVITY_KEY,FROM_LOCK_ACTIVITY);
-                startActivity(intent);
-                finish();
             }
         });
 
         // set image to View
-       // setImageToView();
+        // setImageToView();
 
         // Set Default COSU policy
         mAdminComponentName = DeviceAdminReceiver.getComponentName(this);
         mDevicePolicyManager = (DevicePolicyManager) getSystemService(
                 Context.DEVICE_POLICY_SERVICE);
-        mPackageManager = getPackageManager();
-        if(mDevicePolicyManager.isDeviceOwnerApp(getPackageName())){
+        if (mDevicePolicyManager.isDeviceOwnerApp(getPackageName())) {
             setDefaultCosuPolicies(true);
-        }
-        else {
+        } else {
             Toast.makeText(getApplicationContext(),
-                    R.string.not_device_owner,Toast.LENGTH_SHORT)
+                    R.string.not_device_owner, Toast.LENGTH_SHORT)
                     .show();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        try {
+            Calendar now = Calendar.getInstance();
+            dateString = "Settings" + new SimpleDateFormat("yyyyMMdd").format(now.getTime());
+            if (now.get(Calendar.HOUR_OF_DAY) == 14) {
+
+                pref = getApplicationContext().getSharedPreferences("LockedApp", 0);
+                if (!pref.contains(dateString)) {
+                  ///  Toast.makeText(getApplicationContext(), "devu resumend with update", 1).show();
+
+                    new FileAsyncTask(new OnTaskCompleted() {
+                        @Override
+                        public void onTaskCompleted(String res) {
+                          ////  Toast.makeText(getApplicationContext(),res,1).show();
+                            PDFPagerAdapter adapter = new PDFPagerAdapter(getApplicationContext(), file.getAbsolutePath());
+                            pdfViewPager.setAdapter(adapter);
+                            pref.edit().putBoolean(dateString,true).commit();
+                        }
+                    }).execute("","","");
+                } else {
+                  ////  Toast.makeText(getApplicationContext(), "No update needed for today", 1).show();
+
+
+                }
+
+                // 0 - for private mode
+
+
+            }
+        }
+        catch (Exception e)
+        {
+            Toast.makeText(getApplicationContext(),e.getMessage(),1).show();
+        }
+    }
+
+    private void ShowDialog() {
+
+        LayoutInflater layoutInflaterAndroid = LayoutInflater.from(getApplicationContext());
+        View mView = layoutInflaterAndroid.inflate(R.layout.layout_dialog, null);
+        AlertDialog.Builder alertDialogBuilderUserInput = new AlertDialog.Builder(LockedActivity.this);
+        alertDialogBuilderUserInput.setView(mView);
+
+        final EditText userInputDialogEditText = (EditText) mView.findViewById(R.id.userInputDialog);
+        alertDialogBuilderUserInput
+                .setCancelable(false)
+                .setPositiveButton("Send", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialogBox, int id) {
+                        // ToDo get user input here
+                        if(userInputDialogEditText.getEditableText().toString().contentEquals("2289"))
+                        {
+                            ChangeLock();
+                        }
+                    }
+                })
+
+                .setNegativeButton("Cancel",
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialogBox, int id) {
+                                dialogBox.cancel();
+                            }
+                        });
+
+        AlertDialog alertDialogAndroid = alertDialogBuilderUserInput.create();
+        alertDialogAndroid.show();
+    }
+
+    private void ChangeLock() {
+        ActivityManager am = (ActivityManager) getSystemService(
+                Context.ACTIVITY_SERVICE);
+
+        if (am.getLockTaskModeState() ==
+                    ActivityManager.LOCK_TASK_MODE_LOCKED) {
+            stopLockTask();
+        }
+
+        setDefaultCosuPolicies(false);
+
+        Intent intent = new Intent(
+                getApplicationContext(), MainActivity.class);
+
+        intent.putExtra(LOCK_ACTIVITY_KEY,FROM_LOCK_ACTIVITY);
+        startActivity(intent);
+        finish();
     }
 
     @Override
@@ -185,16 +250,6 @@ public class LockedActivity extends Activity {
         }
     }
 
-    @Override
-    protected void onStop(){
-        super.onStop();
-
-        // get editor object and make preference changes to save photo filepath
-        SharedPreferences settings = getSharedPreferences(PREFS_FILE_NAME, 0);
-        SharedPreferences.Editor editor = settings.edit();
-        editor.putString(PHOTO_PATH, mCurrentPhotoPath);
-        editor.commit();
-    }
 
 
 

@@ -25,6 +25,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -43,16 +44,13 @@ import java.util.Date;
 
 public class MainActivity extends Activity {
 
-    private Button lockTaskButton;
+    private Button lockTaskButton,download;
     private int permissionCheck;
     private PackageManager mPackageManager;
 
     private DevicePolicyManager mDevicePolicyManager;
     private ComponentName mAdminComponentName;
 
-//    private static final int REQUEST_IMAGE_CAPTURE = 1;
-//    private static final int PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 2;
-//    private static final String FILE_TAG = "File Creation";
 
     public static final String EXTRA_FILEPATH =
             "com.google.codelabs.cosu.EXTRA_FILEPATH";
@@ -61,9 +59,19 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                        1);
 
 
 
+
+        }
 
         mDevicePolicyManager = (DevicePolicyManager)
                 getSystemService(Context.DEVICE_POLICY_SERVICE);
@@ -73,6 +81,18 @@ public class MainActivity extends Activity {
         mPackageManager = this.getPackageManager();
 
         lockTaskButton = (Button) findViewById(R.id.start_lock_button);
+        download = (Button) findViewById(R.id.download);
+        download.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new FileAsyncTask(new OnTaskCompleted() {
+                    @Override
+                    public void onTaskCompleted(String res) {
+                        Toast.makeText(getApplicationContext(),res,1).show();
+                    }
+                }).execute("","","");
+            }
+        });
         lockTaskButton.setEnabled(true);
 
         lockTaskButton.setOnClickListener(new View.OnClickListener() {
@@ -115,7 +135,6 @@ public class MainActivity extends Activity {
                     PackageManager.DONT_KILL_APP);
         }
     }
-
 
 
 }
